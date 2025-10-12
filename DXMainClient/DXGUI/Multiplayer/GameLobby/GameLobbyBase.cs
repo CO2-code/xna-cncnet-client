@@ -1030,7 +1030,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 ddPlayerColor.Tag = false;
 
                 var ddPlayerTeam = new XNAClientDropDown(WindowManager);
-                ddPlayerTeam.Name = "ddPlayerTeam" + i;
+                ddPlayerTeam.Name = "ddPlayerTeam" + 12;
                 ddPlayerTeam.ClientRectangle = new Rectangle(
                     ddPlayerColor.Right + playerOptionHorizontalMargin,
                     ddPlayerName.Y, teamWidth, DROP_DOWN_HEIGHT);
