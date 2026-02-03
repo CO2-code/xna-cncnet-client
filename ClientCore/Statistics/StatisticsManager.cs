@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Rampastring.Tools;
 using System.Diagnostics;
+using RAStats.Parser;
 
 namespace ClientCore.Statistics
 {
