@@ -1162,9 +1162,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             ReadINIForControl(lblTeam);
 
             btnPlayerExtraOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerExtraOptionsOpen), true);
+
             if (btnPlayerExtraOptionsOpen != null)
             {
                 PlayerExtraOptionsPanel = FindChild<PlayerExtraOptionsPanel>(nameof(PlayerExtraOptionsPanel));
+                ReadINIForControl(PlayerExtraOptionsPanel);
 
                 foreach (var child in PlayerExtraOptionsPanel.Children)
                 {
@@ -2201,7 +2203,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
 
             AIPlayers.Clear();
-            for (int cmbId = Players.Count; cmbId < MaxPlayerCount; cmbId++)
+            for (int cmbId = Players.Count; cmbId < MAX_PLAYER_COUNT; cmbId++)
             {
                 XNADropDown dd = ddPlayerNames[cmbId];
                 dd.Items[0].Text = "-";
@@ -2558,7 +2560,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 foreach (PlayerInfo pInfo in concatPlayerList)
                     pInfo.TeamId = 1;
 
-                if (PlayerOptionsPanel != null)
+                if (PlayerExtraOptionsPanel != null)
                 {
                     PlayerExtraOptionsPanel.ForcedNoTeamsAllowChecking = false;
                     PlayerExtraOptionsPanel.ForcedNoTeams = false;
@@ -2569,7 +2571,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
             else
             {
-                if (PlayerOptionsPanel != null)
+                if (PlayerExtraOptionsPanel != null)
                 {
                     PlayerExtraOptionsPanel.ForcedNoTeamsAllowChecking = true;
                     PlayerExtraOptionsPanel.UseTeamStartMappingsAllowChecking = true;
