@@ -2,6 +2,7 @@ using ClientCore;
 using ClientCore.Extensions;
 using Rampastring.Tools;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,6 +10,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -518,31 +520,69 @@ namespace DTAClient.Online
         /// <param name="message">The message.</param>
         private void HandleMessage(string message)
         {
-            string msg = overMessage + message;
-            overMessage = "";
-            while (true)
+            if (string.IsNullOrEmpty(message))
+                return;
+
+            try
             {
-                int commandEndIndex = msg.IndexOf("\n");
+                // Intercept NOTICE messages for mute sync commands first
+                if (message.Contains(" NOTICE "))
+                {
+                    int idx = message.IndexOf(" NOTICE ");
+                    string after = message.Substring(idx + " NOTICE ".Length);
 
-                if (commandEndIndex == -1)
-                {
-                    overMessage = msg;
-                    break;
-                }
-                else if (msg.Length != commandEndIndex + 1)
-                {
-                    string command = msg.Substring(0, commandEndIndex - 1);
-                    PerformCommand(command);
+                    // after is typically: "<target> :<text>"
+                    int colonIdx = after.IndexOf(" :");
+                    string noticeText = colonIdx >= 0 ? after.Substring(colonIdx + 2) : after;
 
-                    msg = msg.Remove(0, commandEndIndex + 1);
-                }
-                else
-                {
-                    string command = msg.Substring(0, msg.Length - 1);
-                    PerformCommand(command);
-                    break;
+                    string sender = null;
+                    if (message.StartsWith(":"))
+                    {
+                        int sp = message.IndexOf(' ');
+                        if (sp > 1)
+                            sender = message.Substring(1, sp - 1);
+                    }
+
+                    // Handle control messages from bot: MUTE_ADD <id> / MUTE_REMOVE <id>
+                    if (noticeText.StartsWith("MUTE_ADD ") || noticeText.StartsWith("MUTE_REMOVE "))
+                    {
+                        string[] parts = noticeText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2)
+                        {
+                            string receivedId = parts[1].Trim();
+
+                            // Compare only to this client's systemId and set muted state accordingly
+                            string localId;
+                            lock (idLocker)
+                            {
+                                localId = systemId;
+                            }
+
+                            if (!string.IsNullOrEmpty(localId) && string.Equals(localId, receivedId, StringComparison.InvariantCultureIgnoreCase))
+                            {
+                                if (noticeText.StartsWith("MUTE_ADD "))
+                                    DTAClient.Online.MuteManager.SetMuted(true);
+                                else
+                                    DTAClient.Online.MuteManager.SetMuted(false);
+                            }
+
+                            // Silent control channel: always consume MUTE_* messages (do not forward to UI)
+                            return;
+                        }
+                    }
+
+                    // Forward other NOTICE messages to connection manager
+                    connectionManager?.OnNoticeMessageParsed(noticeText, sender);
+                    return;
                 }
             }
+            catch (Exception ex)
+            {
+                Logger.Log("HandleMessage error: " + ex.Message);
+            }
+
+            // Fallback: forward raw message to generic handler
+            connectionManager?.OnGenericServerMessageReceived(message);
         }
 
         /// <summary>
@@ -811,57 +851,51 @@ namespace DTAClient.Online
         /// <param name="parameters">(out) The parameters of the command.</param>
         private void ParseIrcMessage(string message, out string prefix, out string command, out List<string> parameters)
         {
-            int prefixEnd = -1;
-            prefix = command = String.Empty;
+            prefix = null;
+            command = null;
             parameters = new List<string>();
 
-            // Grab the prefix if it is present. If a message begins
-            // with a colon, the characters following the colon until
-            // the first space are the prefix.
-            if (message.StartsWith(":"))
-            {
-                prefixEnd = message.IndexOf(" ");
-                prefix = message.Substring(1, prefixEnd - 1);
-            }
-
-            // Grab the trailing if it is present. If a message contains
-            // a space immediately following a colon, all characters after
-            // the colon are the trailing part.
-            int trailingStart = message.IndexOf(" :");
-            string trailing = null;
-            if (trailingStart >= 0)
-                trailing = message.Substring(trailingStart + 2);
-            else
-                trailingStart = message.Length;
-
-            // Use the prefix end position and trailing part start
-            // position to extract the command and parameters.
-            var commandAndParameters = message.Substring(prefixEnd + 1, trailingStart - prefixEnd - 1).Split(new char[1] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-            if (commandAndParameters.Length == 0)
-            {
-                command = String.Empty;
-                Logger.Log("Nonexistant command!");
+            if (string.IsNullOrEmpty(message))
                 return;
-            }
 
-            // The command will always be the first element of the array.
-            command = commandAndParameters[0];
-
-            // The rest of the elements are the parameters, if they exist.
-            // Skip the first element because that is the command.
-            if (commandAndParameters.Length > 1)
+            string working = message;
+            if (working.StartsWith(":"))
             {
-                for (int id = 1; id < commandAndParameters.Length; id++)
+                int sp = working.IndexOf(' ');
+                if (sp > 1)
                 {
-                    parameters.Add(commandAndParameters[id]);
+                    prefix = working.Substring(1, sp - 1);
+                    working = working.Substring(sp + 1);
                 }
             }
 
-            // If the trailing part is valid add the trailing part to the
-            // end of the parameters.
-            if (!string.IsNullOrEmpty(trailing))
-                parameters.Add(trailing);
+            int idx = working.IndexOf(' ');
+            if (idx >= 0)
+            {
+                command = working.Substring(0, idx);
+                string rest = working.Substring(idx + 1);
+                while (!string.IsNullOrEmpty(rest))
+                {
+                    if (rest.StartsWith(":"))
+                    {
+                        parameters.Add(rest.Substring(1));
+                        break;
+                    }
+
+                    int s = rest.IndexOf(' ');
+                    if (s < 0)
+                    {
+                        parameters.Add(rest);
+                        break;
+                    }
+                    parameters.Add(rest.Substring(0, s));
+                    rest = rest.Substring(s + 1);
+                }
+            }
+            else
+            {
+                command = working;
+            }
         }
 
         #endregion
@@ -972,23 +1006,33 @@ namespace DTAClient.Online
         /// <param name="message">The message to send.</param>
         private void SendMessage(string message)
         {
-            if (serverStream == null)
+            if (string.IsNullOrEmpty(message))
                 return;
 
-            Logger.Log("SRM: " + message);
-
-            byte[] buffer = encoding.GetBytes(message + "\r\n");
-            if (serverStream.CanWrite)
+            try
             {
-                try
+                // Block sending PRIVMSG / NOTICE if this client instance is muted
+                string upper = message.ToUpperInvariant();
+                if (upper.StartsWith("PRIVMSG") || upper.StartsWith("NOTICE"))
                 {
+                    if (DTAClient.Online.MuteManager.IsMuted())
+                    {
+                        Logger.Log("SendMessage blocked by mute: " + message);
+                        return;
+                    }
+                }
+
+                // Send raw message to server stream if available
+                if (serverStream != null && serverStream.CanWrite)
+                {
+                    byte[] buffer = encoding.GetBytes(message + "\r\n");
                     serverStream.Write(buffer, 0, buffer.Length);
                     serverStream.Flush();
                 }
-                catch (IOException ex)
-                {
-                    Logger.Log("Sending message to the server failed! Reason: " + ex.ToString());
-                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("SendMessage exception: " + ex.Message);
             }
         }
 
