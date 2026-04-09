@@ -688,6 +688,52 @@ namespace DTAClient.Online
                             {
                                 string noticeUserName = prefix.Substring(0, noticeExclamIndex);
                                 string notice = parameters[parameters.Count - 1];
+                                
+                                // Handle silent mute control messages
+                                if (notice.StartsWith("MUTE_ADD ", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    string muteId = notice.Substring("MUTE_ADD ".Length).Trim();
+                                    if (!string.IsNullOrEmpty(muteId))
+                                    {
+                                        string localId;
+                                        lock (idLocker)
+                                        {
+                                            localId = systemId;
+                                        }
+                                        
+                                        if (!string.IsNullOrEmpty(localId) && 
+                                            string.Equals(localId, muteId, StringComparison.InvariantCultureIgnoreCase))
+                                        {
+                                            MuteManager.SetMuted(true);
+                                            Logger.Log($"Client muted by server (MUTE_ADD from {noticeUserName})");
+                                        }
+                                    }
+                                    // Silent: do not forward to UI
+                                    return;
+                                }
+                                
+                                if (notice.StartsWith("MUTE_REMOVE ", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    string muteId = notice.Substring("MUTE_REMOVE ".Length).Trim();
+                                    if (!string.IsNullOrEmpty(muteId))
+                                    {
+                                        string localId;
+                                        lock (idLocker)
+                                        {
+                                            localId = systemId;
+                                        }
+                                        
+                                        if (!string.IsNullOrEmpty(localId) && 
+                                            string.Equals(localId, muteId, StringComparison.InvariantCultureIgnoreCase))
+                                        {
+                                            MuteManager.SetMuted(false);
+                                            Logger.Log($"Client unmuted by server (MUTE_REMOVE from {noticeUserName})");
+                                        }
+                                    }
+                                    // Silent: do not forward to UI
+                                    return;
+                                }
+                                
                                 connectionManager.OnNoticeMessageParsed(notice, noticeUserName);
                                 break;
                             }
