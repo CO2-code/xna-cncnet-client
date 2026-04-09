@@ -570,10 +570,6 @@ namespace DTAClient.Online
                             return;
                         }
                     }
-
-                    // Forward other NOTICE messages to connection manager
-                    connectionManager?.OnNoticeMessageParsed(noticeText, sender);
-                    return;
                 }
             }
             catch (Exception ex)
@@ -581,8 +577,8 @@ namespace DTAClient.Online
                 Logger.Log("HandleMessage error: " + ex.Message);
             }
 
-            // Fallback: forward raw message to generic handler
-            connectionManager?.OnGenericServerMessageReceived(message);
+            // Process all IRC commands (CRITICAL for registration, PING/PONG, etc.)
+            PerformCommand(message);
         }
 
         /// <summary>
