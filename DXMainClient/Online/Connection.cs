@@ -1011,13 +1011,13 @@ namespace DTAClient.Online
 
             try
             {
-                // Block sending PRIVMSG / NOTICE if this client instance is muted
-                string upper = message.ToUpperInvariant();
-                if (upper.StartsWith("PRIVMSG") || upper.StartsWith("NOTICE"))
+                // Block sending user chat (PRIVMSG only) if muted.
+                // Never block NOTICE, PING, PONG, USER, NICK, or other system commands.
+                if (MuteManager.IsMuted())
                 {
-                    if (DTAClient.Online.MuteManager.IsMuted())
+                    if (message.StartsWith("PRIVMSG "))
                     {
-                        Logger.Log("SendMessage blocked by mute: " + message);
+                        Logger.Log("Blocked PRIVMSG due to mute.");
                         return;
                     }
                 }
