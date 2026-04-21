@@ -25,6 +25,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 {
     class DisplayOptionsPanel : XNAOptionsPanel
     {
+        // Mouse must move at least this many pixels from click point before drag selection activates.
         private const int DRAG_DISTANCE_DEFAULT = 4;
         private const int ORIGINAL_RESOLUTION_WIDTH = 640;
 
@@ -628,7 +629,10 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             (IniSettings.IngameScreenWidth.Value, IniSettings.IngameScreenHeight.Value) = ingameRes;
 
             // Calculate drag selection distance, scale it with resolution width
-            int dragDistance = ingameRes.Width / ORIGINAL_RESOLUTION_WIDTH * DRAG_DISTANCE_DEFAULT;
+            // CustomDragDistance > 0 overrides auto-scaling for players who need a specific value
+            int dragDistance = IniSettings.CustomDragDistance.Value > 0
+                ? IniSettings.CustomDragDistance.Value
+                : ingameRes.Width / ORIGINAL_RESOLUTION_WIDTH * DRAG_DISTANCE_DEFAULT;
             IniSettings.DragDistance.Value = dragDistance;
 
             var newSelectedRenderer = (DirectDrawWrapper)ddRenderer.SelectedItem.Tag;
