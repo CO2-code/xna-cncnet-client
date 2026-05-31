@@ -606,7 +606,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
 #endif
 
             connectionManager.MainChannel.AddMessage(new ChatMessage(Color.White, Renderer.GetSafeString(
-                    string.Format("*** DTA CnCNet Client version {0} ***".L10N("Client:Main:CnCNetClientVersionMessage"), clientVersion),
+                    string.Format("*** CnCNet Client version {0} ***".L10N("Client:Main:CnCNetClientVersionMessageV2"), clientVersion),
                     lbChatMessages.FontIndex)));
 
             {
@@ -1600,7 +1600,8 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 int tunnelPort = int.Parse(tunnelAddressAndPort[1]);
 
                 string loadedGameId = splitMessage[10];
-                int skillLevel = int.Parse(splitMessage[11]);
+                int skillLevel = ClientConfiguration.Instance.NormalizeSkillLevel(
+                    Conversions.IntFromString(splitMessage[11], ClientConfiguration.Instance.DefaultSkillLevelIndex));
                 string mapHash = splitMessage[12];
 
                 int[] gameOptionValues = null;
