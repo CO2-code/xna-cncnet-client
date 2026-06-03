@@ -282,6 +282,10 @@ namespace ClientCore
 
         public string StatisticsLogFileName => clientDefinitionsIni.GetStringValue(SETTINGS, "StatisticsLogFileName", "DTA.LOG");
 
+        public bool EnableStatsDumpParser => clientDefinitionsIni.GetBooleanValue(SETTINGS, "EnableStatsDumpParser", false);
+
+        public string StatsDumpRulesIni => clientDefinitionsIni.GetStringValue(SETTINGS, "StatsDumpRulesIni", "RA1Rules.ini");
+
         public string[] TrustedDomains => clientDefinitionsIni.GetStringListValue(SETTINGS, "TrustedDomains", string.Empty);
 
         public string[] AlwaysTrustedDomains = { "cncnet.org", "gamesurge.net", "dronebl.org" };
