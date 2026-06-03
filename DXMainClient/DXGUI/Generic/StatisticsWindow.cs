@@ -148,6 +148,12 @@ namespace DTAClient.DXGUI.Generic
             btnClearStatistics.LeftClick += BtnClearStatistics_LeftClick;
             btnClearStatistics.Visible = false;
 
+            var btnViewDump = new XNAClientButton(WindowManager);
+            btnViewDump.Name = nameof(btnViewDump);
+            btnViewDump.ClientRectangle = new Rectangle(528, 486, UIDesignConstants.BUTTON_WIDTH_160, UIDesignConstants.BUTTON_HEIGHT);
+            btnViewDump.Text = "View Stats Dump".L10N("Client:Main:ViewStatsDump", "View Stats Dump");
+            btnViewDump.LeftClick += BtnViewDump_LeftClick;
+
             chkIncludeSpectatedGames = new XNAClientCheckBox(WindowManager);
 
             AddChild(chkIncludeSpectatedGames);
@@ -400,6 +406,7 @@ namespace DTAClient.DXGUI.Generic
             AddChild(cmbGameModeFilter);
             AddChild(btnReturnToMenu);
             AddChild(btnClearStatistics);
+            AddChild(btnViewDump);
 
             base.Initialize();
 
@@ -1018,6 +1025,25 @@ namespace DTAClient.DXGUI.Generic
         }
 
         #endregion
+
+        private void BtnViewDump_LeftClick(object sender, EventArgs e)
+        {
+            if (lbGameList.SelectedIndex == -1)
+                return;
+
+            MatchStatistics ms = sm.GetMatchByIndex(listedGameIndexes[lbGameList.SelectedIndex]);
+            if (ms == null)
+                return;
+
+            string dumpText = ms.DmpSummary;
+            if (string.IsNullOrEmpty(dumpText))
+            {
+                dumpText = "No stats dump available for this game.".L10N("Client:Main:NoStatsDump", "No stats dump available for this game.");
+            }
+
+            var msgBox = new XNAMessageBox(WindowManager, "Stats Dump".L10N("Client:Main:StatsDumpTitle", "Stats Dump"), dumpText, XNAMessageBoxButtons.OK);
+            msgBox.Show();
+        }
 
         private void BtnReturnToMenu_LeftClick(object sender, EventArgs e)
         {

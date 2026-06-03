@@ -46,6 +46,8 @@ namespace ClientCore.Statistics
 
         public bool IsValidForStar { get; set; } = true;
 
+        public string DmpSummary { get; set; }
+
         public void AddPlayer(string name, bool isLocal, bool isAI, bool isSpectator,
             int side, int team, int color, int aiLevel)
         {
@@ -67,6 +69,19 @@ namespace ClientCore.Statistics
 
             var parser = new LogFileStatisticsParser(this, isLoadedGame);
             parser.ParseStats(gamePath, ClientConfiguration.Instance.StatisticsLogFileName);
+
+            try
+            {
+                string dumpPath = Path.Combine(gamePath, "stats.dmp");
+                if (File.Exists(dumpPath))
+                {
+                    StatsDumpProcessor.Process(dumpPath, this, ClientConfiguration.Instance);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Error running stats dump processor: " + ex.Message);
+            }
         }
 
         public PlayerStatistics GetEmptyPlayerByName(string playerName)
