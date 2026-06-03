@@ -18,7 +18,7 @@ namespace ClientCore.Statistics
             try
             {
                 // Choose the correct rules file based on the game type
-                string game = config.GetString("Game", "RA1");
+                string game = config.LocalGame;
                 string rulesFile = game.Equals("RA2", StringComparison.OrdinalIgnoreCase)
                     ? "RA2Rules.ini"
                     : config.StatsDumpRulesIni;
