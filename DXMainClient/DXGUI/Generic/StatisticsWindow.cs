@@ -151,7 +151,7 @@ namespace DTAClient.DXGUI.Generic
             var btnViewDump = new XNAClientButton(WindowManager);
             btnViewDump.Name = nameof(btnViewDump);
             btnViewDump.ClientRectangle = new Rectangle(528, 486, UIDesignConstants.BUTTON_WIDTH_160, UIDesignConstants.BUTTON_HEIGHT);
-            btnViewDump.Text = "View Stats Dump".L10N("Client:Main:ViewStatsDump", "View Stats Dump");
+            btnViewDump.Text = "View Stats Dump".L10N("Client:Main:ViewStatsDump");
             btnViewDump.LeftClick += BtnViewDump_LeftClick;
 
             chkIncludeSpectatedGames = new XNAClientCheckBox(WindowManager);
@@ -1038,10 +1038,10 @@ namespace DTAClient.DXGUI.Generic
             string dumpText = ms.DmpSummary;
             if (string.IsNullOrEmpty(dumpText))
             {
-                dumpText = "No stats dump available for this game.".L10N("Client:Main:NoStatsDump", "No stats dump available for this game.");
+                dumpText = "No stats dump available for this game.".L10N("Client:Main:NoStatsDump");
             }
 
-            var msgBox = new XNAMessageBox(WindowManager, "Stats Dump".L10N("Client:Main:StatsDumpTitle", "Stats Dump"), dumpText, XNAMessageBoxButtons.OK);
+            var msgBox = new XNAMessageBox(WindowManager, "Stats Dump".L10N("Client:Main:StatsDumpTitle"), dumpText, XNAMessageBoxButtons.OK);
             msgBox.Show();
         }
 
