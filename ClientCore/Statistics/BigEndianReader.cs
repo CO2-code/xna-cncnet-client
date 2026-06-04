@@ -29,6 +29,8 @@ namespace ClientCore.Statistics
 
         public byte[] ReadBytes(int count) => _br.ReadBytes(count);
 
+        public byte ReadByte() => _br.ReadByte();
+
         public uint ReadUInt32()
         {
             var data = _br.ReadBytes(4);
