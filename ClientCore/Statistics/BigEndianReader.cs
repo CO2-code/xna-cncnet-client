@@ -28,5 +28,20 @@ namespace ClientCore.Statistics
         }
 
         public byte[] ReadBytes(int count) => _br.ReadBytes(count);
+
+        public uint ReadUInt32()
+        {
+            var data = _br.ReadBytes(4);
+            return ((uint)data[0] << 24) | ((uint)data[1] << 16) | ((uint)data[2] << 8) | data[3];
+        }
+
+        // Reads 4 bytes, returns the first as an int, discards the rest.
+        // Matches Read_Byte() semantics in the standalone parser.
+        public int ReadByteAs4()
+        {
+            int value = _br.ReadByte();
+            _br.ReadBytes(3);
+            return value;
+        }
     }
 }
