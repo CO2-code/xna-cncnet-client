@@ -151,7 +151,7 @@ namespace DTAClient.DXGUI.Generic
             var btnViewDump = new XNAClientButton(WindowManager);
             btnViewDump.Name = nameof(btnViewDump);
             btnViewDump.ClientRectangle = new Rectangle(528, 486, UIDesignConstants.BUTTON_WIDTH_160, UIDesignConstants.BUTTON_HEIGHT);
-            btnViewDump.Text = "View Stats Dump".L10N("Client:Main:ViewStatsDump");
+            btnViewDump.Text = "View Details".L10N("Client:Main:ViewDetails");
             btnViewDump.LeftClick += BtnViewDump_LeftClick;
 
             chkIncludeSpectatedGames = new XNAClientCheckBox(WindowManager);

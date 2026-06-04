@@ -11,7 +11,7 @@ namespace ClientCore.Statistics
 {
     public class StatisticsManager : GenericStatisticsManager
     {
-        private const string VERSION = "1.06";
+        private const string VERSION = "1.07";
         private const string SCORE_FILE_PATH = "Client/dscore.dat";
         private const string OLD_SCORE_FILE_PATH = "dscore.dat";
         private static StatisticsManager _instance;
@@ -107,6 +107,9 @@ namespace ClientCore.Statistics
                         break;
                     case "1.06":
                         ReadDatabase(filePath, 6);
+                        break;
+                    case "1.07":
+                        ReadDatabase(filePath, 7);
                         break;
                     default:
                         throw new InvalidDataException("Invalid version for " + filePath + ": " + databaseVersion);
@@ -255,6 +258,26 @@ namespace ClientCore.Statistics
 
                             if (!ps.IsAI)
                                 ms.NumberOfHumanPlayers++;
+                        }
+
+                        // Read DmpSummary if version >= 7
+                        if (version >= 7)
+                        {
+                            try
+                            {
+                                fs.Read(readBuffer, 0, 4);
+                                int dmpLength = BinaryPrimitives.ReadInt32LittleEndian(readBuffer);
+                                if (dmpLength > 0)
+                                {
+                                    byte[] dmpBuffer = new byte[dmpLength];
+                                    fs.Read(dmpBuffer, 0, dmpLength);
+                                    ms.DmpSummary = Encoding.UTF8.GetString(dmpBuffer);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log("Warning: Failed to read DmpSummary: " + ex.Message);
+                            }
                         }
 
                         if (ms.Players.Find(p => p.IsLocalPlayer && !p.IsAI) == null)

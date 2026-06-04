@@ -147,6 +147,19 @@ namespace ClientCore.Statistics
                 PlayerStatistics ps = GetPlayer(i);
                 ps.Write(stream);
             }
+
+            // Write DmpSummary (variable length string, version 1.07+)
+            // First write length as 4-byte int, then the string as UTF-8
+            if (string.IsNullOrEmpty(DmpSummary))
+            {
+                stream.WriteInt(0);
+            }
+            else
+            {
+                byte[] dmpBytes = Encoding.UTF8.GetBytes(DmpSummary);
+                stream.WriteInt(dmpBytes.Length);
+                stream.Write(dmpBytes, 0, dmpBytes.Length);
+            }
         }
     }
 }

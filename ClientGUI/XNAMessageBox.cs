@@ -58,6 +58,10 @@ namespace ClientGUI
             Name = "MessageBox";
             BackgroundTexture = AssetLoader.LoadTexture("msgboxform.png");
 
+            // Define maximum dimensions for the message box
+            const int MAX_WIDTH = 800;
+            const int MAX_CONTENT_HEIGHT = 400;
+
             XNALabel lblCaption = new XNALabel(WindowManager);
             lblCaption.Text = caption;
             lblCaption.ClientRectangle = new Rectangle(12, 9, 0, 0);
@@ -66,16 +70,41 @@ namespace ClientGUI
             XNAPanel line = new XNAPanel(WindowManager);
             line.ClientRectangle = new Rectangle(6, 29, 0, 1);
 
-            XNALabel lblDescription = new XNALabel(WindowManager);
-            lblDescription.Text = description;
-            lblDescription.ClientRectangle = new Rectangle(12, 39, 0, 0);
-
+            Vector2 textDimensions = Renderer.GetTextDimensions(description, 0);
+            
+            // Calculate desired content size
+            int contentWidth = Math.Min((int)textDimensions.X + 24, MAX_WIDTH - 12);
+            int contentHeight = (int)textDimensions.Y;
+            
             AddChild(lblCaption);
             AddChild(line);
-            AddChild(lblDescription);
 
-            Vector2 textDimensions = Renderer.GetTextDimensions(lblDescription.Text, lblDescription.FontIndex);
-            ClientRectangle = new Rectangle(0, 0, (int)textDimensions.X + 24, (int)textDimensions.Y + 81);
+            // If content is too large, use a scrollable panel
+            if (contentHeight > MAX_CONTENT_HEIGHT)
+            {
+                // Create a scroll panel for the description
+                var scrollPanel = new XNAScrollPanel(WindowManager);
+                scrollPanel.ClientRectangle = new Rectangle(12, 39, contentWidth - 24, MAX_CONTENT_HEIGHT);
+                
+                XNALabel lblDescription = new XNALabel(WindowManager);
+                lblDescription.Text = description;
+                lblDescription.ClientRectangle = new Rectangle(0, 0, contentWidth - 40, (int)textDimensions.Y);
+                
+                scrollPanel.AddChild(lblDescription);
+                AddChild(scrollPanel);
+                
+                ClientRectangle = new Rectangle(0, 0, contentWidth, MAX_CONTENT_HEIGHT + 81);
+            }
+            else
+            {
+                XNALabel lblDescription = new XNALabel(WindowManager);
+                lblDescription.Text = description;
+                lblDescription.ClientRectangle = new Rectangle(12, 39, 0, 0);
+                
+                AddChild(lblDescription);
+                ClientRectangle = new Rectangle(0, 0, contentWidth, contentHeight + 81);
+            }
+
             line.ClientRectangle = new Rectangle(6, 29, Width - 12, 1);
 
             if (messageBoxButtons == XNAMessageBoxButtons.OK)
