@@ -117,6 +117,8 @@ namespace DTAClient.Online
             {
                 Logger.Log("Unable to connect to WebSocket server. " + ex.ToString());
                 attemptingConnection = false;
+                connectionManager.OnGenericServerMessageReceived(
+                    $"WebSocket connection error: {ex.Message}");
                 connectionManager.OnConnectAttemptFailed();
             }
         }
@@ -580,6 +582,7 @@ namespace DTAClient.Online
         private async Task HandleDisconnectAsync()
         {
             isConnected = false;
+            identified = false;
 
             pingCts?.Cancel();
             pingCts?.Dispose();
@@ -625,6 +628,8 @@ namespace DTAClient.Online
                 if (reconnectCount > MAX_RECONNECT_COUNT)
                 {
                     Logger.Log("Reconnect attempt count exceeded!");
+                    connectionManager.OnConnectionLost(
+                        "Disconnected from CnCNet after too many failed reconnect attempts.");
                     return;
                 }
 

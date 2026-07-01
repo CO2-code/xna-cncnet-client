@@ -124,6 +124,9 @@ namespace DTAClient.Online
 
         public bool IsCnCNetInitialized()
         {
+            if (ClientConfiguration.Instance.UseWebSocket)
+                return connection.IsConnected;
+
             return Connection.IsIdSet();
         }
 
