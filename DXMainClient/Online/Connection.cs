@@ -34,6 +34,8 @@ namespace DTAClient.Online
 
         IConnectionManager connectionManager;
 
+        Random IProtocolConnection.Rng => Rng;
+
         public Random Rng;
 
         private static IList<Server> _servers = null;
