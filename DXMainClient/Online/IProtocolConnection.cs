@@ -24,6 +24,16 @@ namespace DTAClient.Online
         void QueueMessage(QueuedMessage qm);
 
         /// <summary>
+        /// Queues a message with the specified type, priority, and command string.
+        /// </summary>
+        void QueueMessage(QueuedMessageType type, int priority, string message, bool replace = false);
+
+        /// <summary>
+        /// Queues a message with the specified type, priority, delay, and command string.
+        /// </summary>
+        void QueueMessage(QueuedMessageType type, int priority, int delay, string message);
+
+        /// <summary>
         /// Sends a raw message immediately (bypasses the queue).
         /// </summary>
         void SendMessage(string message);

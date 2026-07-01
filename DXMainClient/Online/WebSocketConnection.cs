@@ -651,6 +651,18 @@ namespace DTAClient.Online
             }
         }
 
+        public void QueueMessage(QueuedMessageType type, int priority, string message, bool replace = false)
+        {
+            QueuedMessage qm = new QueuedMessage(message, type, priority, replace);
+            QueueMessage(qm);
+        }
+
+        public void QueueMessage(QueuedMessageType type, int priority, int delay, string message)
+        {
+            QueuedMessage qm = new QueuedMessage(message, type, priority, delay);
+            QueueMessage(qm);
+        }
+
         public void SendMessage(string message)
         {
             _ = SendIrcCommandAsync(message);
