@@ -40,6 +40,13 @@ namespace DTAClient.Online
         private int reconnectCount;
         private int errorCount;
         private string? sessionId;
+        private volatile bool identified;
+
+        /// <summary>
+        /// Serializes all WebSocket SendAsync calls to prevent InvalidOperationException
+        /// from concurrent sends. ClientWebSocket is NOT thread-safe for SendAsync.
+        /// </summary>
+        private readonly SemaphoreSlim sendLock = new(1, 1);
 
         private readonly List<QueuedMessage> messageQueue = new();
         private readonly object messageQueueLock = new();
@@ -84,7 +91,11 @@ namespace DTAClient.Online
                 webSocket = new ClientWebSocket();
                 webSocket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
-                using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                // Enable TLS 1.2 for .NET Framework 4.8 compatibility
+                System.Net.ServicePointManager.SecurityProtocol |=
+                    System.Net.SecurityProtocolType.Tls12;
+
+                using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
                 await webSocket.ConnectAsync(new Uri(webSocketUrl), connectCts.Token);
 
                 Logger.Log("Successfully connected to WebSocket server");
@@ -202,7 +213,9 @@ namespace DTAClient.Online
                     break;
 
                 case WebSocketProtocol.IDENTIFIED:
-                    // Server confirmed our identity
+                    // Server confirmed our identity - now safe to send queued commands
+                    Interlocked.MemoryBarrier();
+                    identified = true;
                     break;
 
                 case WebSocketProtocol.ERROR:
@@ -356,6 +369,13 @@ namespace DTAClient.Online
         {
             while (isConnected && !disconnectRequested)
             {
+                // Wait until we've identified with the server before sending queued commands
+                if (!identified)
+                {
+                    await Task.Delay(50);
+                    continue;
+                }
+
                 string? message = null;
 
                 lock (messageQueueLock)
@@ -415,6 +435,8 @@ namespace DTAClient.Online
             if (webSocket?.State != WebSocketState.Open)
                 return;
 
+            await sendLock.WaitAsync();
+
             try
             {
                 Logger.Log("SRM: " + message);
@@ -428,6 +450,10 @@ namespace DTAClient.Online
             catch (Exception ex)
             {
                 Logger.Log("Sending message to the server failed! Reason: " + ex.ToString());
+            }
+            finally
+            {
+                sendLock.Release();
             }
         }
 
