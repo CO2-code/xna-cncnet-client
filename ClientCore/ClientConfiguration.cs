@@ -503,6 +503,11 @@ namespace ClientCore
 
         public bool DisableDiscordIntegration => networkDefinitionsIni.GetBooleanValue(SETTINGS, "DisableDiscordIntegration", false);
 
+        public bool UseWebSocket => clientDefinitionsIni.GetBooleanValue(SETTINGS, "UseWebSocket", false);
+
+        public string WebSocketUrl => clientDefinitionsIni.GetStringValue(SETTINGS, "WebSocketUrl",
+            "wss://bot-connector--testwtc321.replit.app/api/ws");
+
         public List<string> IRCServers => GetIRCServers();
 
         #endregion
