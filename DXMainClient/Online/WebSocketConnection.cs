@@ -6,8 +6,6 @@ using Rampastring.Tools;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net.WebSockets;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,13 +23,12 @@ namespace DTAClient.Online
         private const int RECONNECT_WAIT_DELAY = 4000;
         private const int MAX_ERROR_COUNT = 30;
         private const int PING_INTERVAL_MS = 30000;
-        private const int RECEIVE_BUFFER_SIZE = 8192;
 
         private readonly IConnectionManager connectionManager;
         private readonly string webSocketUrl;
         private readonly Random rng;
 
-        private ClientWebSocket? webSocket;
+        private TcpWebSocketClient? webSocket;
         private CancellationTokenSource? receiveCts;
         private CancellationTokenSource? pingCts;
         private bool disconnectRequested;
@@ -43,8 +40,8 @@ namespace DTAClient.Online
         private volatile bool identified;
 
         /// <summary>
-        /// Serializes all WebSocket SendAsync calls to prevent InvalidOperationException
-        /// from concurrent sends. ClientWebSocket is NOT thread-safe for SendAsync.
+        /// Serializes all WebSocket SendAsync calls to prevent concurrent-write errors.
+        /// TcpWebSocketClient is NOT thread-safe for simultaneous sends.
         /// </summary>
         private readonly SemaphoreSlim sendLock = new(1, 1);
 
@@ -88,13 +85,7 @@ namespace DTAClient.Online
 
                 Logger.Log("Attempting WebSocket connection to " + webSocketUrl);
 
-                webSocket = new ClientWebSocket();
-                webSocket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
-
-                // Enable TLS 1.2 for .NET Framework 4.8 compatibility
-                System.Net.ServicePointManager.SecurityProtocol |=
-                    System.Net.SecurityProtocolType.Tls12;
-
+                webSocket = new TcpWebSocketClient();
                 using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
                 await webSocket.ConnectAsync(new Uri(webSocketUrl), connectCts.Token);
 
@@ -125,33 +116,21 @@ namespace DTAClient.Online
 
         private async Task ReceiveLoopAsync(CancellationToken ct)
         {
-            var buffer = new byte[RECEIVE_BUFFER_SIZE];
-            var messageBuffer = new StringBuilder();
-
             try
             {
-                while (!ct.IsCancellationRequested && webSocket?.State == WebSocketState.Open)
+                while (!ct.IsCancellationRequested && webSocket?.IsOpen == true)
                 {
-                    var result = await webSocket.ReceiveAsync(
-                        new ArraySegment<byte>(buffer), ct);
+                    string? fullMessage = await webSocket.ReceiveTextAsync(ct);
 
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    if (fullMessage == null)
                     {
                         Logger.Log("WebSocket server closed the connection");
                         break;
                     }
 
-                    messageBuffer.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
-
-                    if (result.EndOfMessage)
-                    {
-                        string fullMessage = messageBuffer.ToString();
-                        messageBuffer.Clear();
-
-                        Logger.Log("Message received: " + fullMessage);
-                        HandleMessage(fullMessage);
-                        errorCount = 0;
-                    }
+                    Logger.Log("Message received: " + fullMessage);
+                    HandleMessage(fullMessage);
+                    errorCount = 0;
                 }
             }
             catch (OperationCanceledException)
@@ -434,7 +413,7 @@ namespace DTAClient.Online
 
         private async Task SendRawMessageAsync(string message)
         {
-            if (webSocket?.State != WebSocketState.Open)
+            if (webSocket?.IsOpen != true)
                 return;
 
             await sendLock.WaitAsync();
@@ -442,12 +421,7 @@ namespace DTAClient.Online
             try
             {
                 Logger.Log("SRM: " + message);
-                byte[] buffer = Encoding.UTF8.GetBytes(message);
-                await webSocket.SendAsync(
-                    new ArraySegment<byte>(buffer),
-                    WebSocketMessageType.Text,
-                    true,
-                    CancellationToken.None);
+                await webSocket.SendTextAsync(message, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -594,20 +568,7 @@ namespace DTAClient.Online
 
             if (webSocket != null)
             {
-                try
-                {
-                    if (webSocket.State == WebSocketState.Open ||
-                        webSocket.State == WebSocketState.CloseReceived)
-                    {
-                        using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                        await webSocket.CloseAsync(
-                            WebSocketCloseStatus.NormalClosure,
-                            disconnectRequested ? "Client disconnecting" : "Connection lost",
-                            closeCts.Token);
-                    }
-                }
-                catch { }
-
+                try { await webSocket.CloseAsync(); } catch { }
                 webSocket.Dispose();
                 webSocket = null;
             }
