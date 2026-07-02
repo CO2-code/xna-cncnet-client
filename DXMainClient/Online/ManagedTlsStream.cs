@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+using System.Collections;
 using System.IO;
 using Org.BouncyCastle.Crypto.Tls;
 using Org.BouncyCastle.Security;
@@ -55,7 +56,7 @@ namespace DTAClient.Online
 
         private sealed class NullTlsAuthentication : TlsAuthentication
         {
-            public void NotifyServerCertificate(org.bouncycastle.crypto.tls.Certificate serverCertificate)
+            public void NotifyServerCertificate(Certificate serverCertificate)
             {
                 // Accept any server certificate.
             }
