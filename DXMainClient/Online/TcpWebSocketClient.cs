@@ -61,18 +61,17 @@ namespace DTAClient.Online
                 var ssl = new SslStream(baseStream, false, ValidateServerCertificate);
                 ssl.ReadTimeout = 15000;
                 ssl.WriteTimeout = 15000;
-
-                SslProtocols tlsProtocols = SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls;
+                ssl.CheckCertRevocationStatus = false;
 
                 try
                 {
-                    await ssl.AuthenticateAsClientAsync(host, null, tlsProtocols, false).ConfigureAwait(false);
+                    await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls12, false).ConfigureAwait(false);
                 }
                 catch (AuthenticationException)
                 {
                     try
                     {
-                        await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Ssl3 | SslProtocols.Tls, false).ConfigureAwait(false);
+                        await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls11, false).ConfigureAwait(false);
                     }
                     catch (AuthenticationException ex)
                     {
