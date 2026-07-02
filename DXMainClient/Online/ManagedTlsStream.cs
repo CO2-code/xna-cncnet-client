@@ -17,18 +17,11 @@ namespace DTAClient.Online
 
         public ManagedTlsStream(Stream underlyingStream, string host)
         {
-            // Use a SecureRandom for the handshake
             var secureRandom = new SecureRandom();
-
-            // Initialize the TLS protocol over the underlying stream
             _protocol = new TlsClientProtocol(underlyingStream, secureRandom);
 
             var client = new BcTlsClient(host);
-
-            // Attempt to connect (perform handshake)
             _protocol.Connect(client);
-
-            // Obtain the stream for application data
             _tlsStream = _protocol.Stream;
         }
 
@@ -41,9 +34,22 @@ namespace DTAClient.Online
                 _host = host;
             }
 
+            public override void NotifyAlertRaised(byte alertLevel, byte alertDescription, string message, Exception? cause)
+            {
+                // Preserve default behavior.
+                base.NotifyAlertRaised(alertLevel, alertDescription, message, cause);
+            }
+
             public override TlsAuthentication GetAuthentication()
             {
                 return new NullTlsAuthentication();
+            }
+
+            public override IDictionary GetClientExtensions()
+            {
+                var extensions = base.GetClientExtensions() ?? new Hashtable();
+                TlsUtilities.AddSniExtension(extensions, new ServerName(NameType.host_name, _host));
+                return extensions;
             }
         }
 
