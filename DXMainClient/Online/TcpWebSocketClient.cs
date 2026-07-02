@@ -4,7 +4,9 @@ using System;
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,8 +58,15 @@ namespace DTAClient.Online
 
             if (useTls)
             {
-                var ssl = new SslStream(baseStream, false);
-                await ssl.AuthenticateAsClientAsync(host).ConfigureAwait(false);
+                var ssl = new SslStream(baseStream, false, ValidateServerCertificate);
+                var sslOptions = new SslClientAuthenticationOptions
+                {
+                    TargetHost = host,
+                    EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                    CertificateRevocationCheckMode = X509RevocationMode.Online
+                };
+
+                await ssl.AuthenticateAsClientAsync(sslOptions, ct).ConfigureAwait(false);
                 _stream = ssl;
             }
             else
@@ -67,6 +76,18 @@ namespace DTAClient.Online
 
             await PerformHandshakeAsync(host, port, path, ct).ConfigureAwait(false);
             _isOpen = true;
+        }
+
+        private static bool ValidateServerCertificate(
+            object sender,
+            System.Security.Cryptography.X509Certificates.X509Certificate? certificate,
+            System.Security.Cryptography.X509Certificates.X509Chain? chain,
+            SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+                return true;
+
+            return false;
         }
 
         private async Task PerformHandshakeAsync(string host, int port, string path, CancellationToken ct)
