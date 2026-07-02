@@ -1,0 +1,9 @@
+  TranslationNotifierGenerator -> C:\Users\BC\Documents\GitHub\xna-cncnet-client\TranslationNotifierGenerator\bin\Release\UniversalGL\netstandard2.0\TranslationNotifierGenerator.dll
+C:\Users\BC\Documents\GitHub\xna-cncnet-client\Rampastring.XNAUI\Rampastring.XNAUI.csproj : warning NU1900: Error occurred while getting package vulnerability data: Unable to load the service index for source https://api.nuget.org/v3/index.json. [TargetFramework=net8.0]
+  Rampastring.Tools -> C:\Users\BC\Documents\GitHub\xna-cncnet-client\Rampastring.XNAUI\Rampastring.Tools\bin\UniversalGLRelease\net8.0\Rampastring.Tools.dll
+  Rampastring.XNAUI -> C:\Users\BC\Documents\GitHub\xna-cncnet-client\Rampastring.XNAUI\bin\UniversalGLRelease\net8.0\Rampastring.XNAUI.UniversalGL.dll
+  ClientCore -> C:\Users\BC\Documents\GitHub\xna-cncnet-client\ClientCore\bin\Release\UniversalGL\net8.0\ClientCore.dll
+  ClientUpdater -> C:\Users\BC\Documents\GitHub\xna-cncnet-client\ClientUpdater\bin\Release\UniversalGL\net8.0\ClientUpdater.dll
+  ClientGUI -> C:\Users\BC\Documents\GitHub\xna-cncnet-client\ClientGUI\bin\Release\UniversalGL\net8.0\ClientGUI.dll
+C:\Users\BC\Documents\GitHub\xna-cncnet-client\Directory.Build.targets(11,5): warning : This is a development build of the client. Stability and reliability may not be fully guaranteed. [C:\Users\BC\Documents\GitHub\xna-cncnet-client\DXMainClient\DXMainClient.csproj::TargetFramework=net8.0]
+  Engine: UniversalGL; Platform: AnyCPU; TargetFramework: net8.0; Configuration: UniversalGLRelease

@@ -23,14 +23,41 @@ namespace DTAClient.Online
             // Initialize the TLS protocol over the underlying stream
             _protocol = new TlsClientProtocol(underlyingStream, secureRandom);
 
-            // Default TLS client; SNI is provided via a simple SNI-aware client
-            var client = new DefaultTlsClient();
+            var client = new BcTlsClient(host);
 
             // Attempt to connect (perform handshake)
             _protocol.Connect(client);
 
             // Obtain the stream for application data
             _tlsStream = _protocol.Stream;
+        }
+
+        private sealed class BcTlsClient : DefaultTlsClient
+        {
+            private readonly string _host;
+
+            public BcTlsClient(string host)
+            {
+                _host = host;
+            }
+
+            public override TlsAuthentication GetAuthentication()
+            {
+                return new NullTlsAuthentication();
+            }
+        }
+
+        private sealed class NullTlsAuthentication : TlsAuthentication
+        {
+            public void NotifyServerCertificate(org.bouncycastle.crypto.tls.Certificate serverCertificate)
+            {
+                // Accept any server certificate.
+            }
+
+            public TlsCredentials GetClientCredentials(CertificateRequest certificateRequest)
+            {
+                return null!;
+            }
         }
 
         public override bool CanRead => _tlsStream.CanRead;
