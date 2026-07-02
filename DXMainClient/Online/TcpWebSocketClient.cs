@@ -59,14 +59,15 @@ namespace DTAClient.Online
             if (useTls)
             {
                 var ssl = new SslStream(baseStream, false, ValidateServerCertificate);
-                var sslOptions = new SslClientAuthenticationOptions
-                {
-                    TargetHost = host,
-                    EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-                    CertificateRevocationCheckMode = X509RevocationMode.Online
-                };
+                ssl.ReadTimeout = 15000;
+                ssl.WriteTimeout = 15000;
 
-                await ssl.AuthenticateAsClientAsync(sslOptions, ct).ConfigureAwait(false);
+                var tlsProtocols = SslProtocols.Tls12;
+#if NET6_0_OR_GREATER
+                tlsProtocols |= SslProtocols.Tls13;
+#endif
+
+                await ssl.AuthenticateAsClientAsync(host, null, tlsProtocols, false).ConfigureAwait(false);
                 _stream = ssl;
             }
             else
