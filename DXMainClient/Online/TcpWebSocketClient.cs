@@ -65,19 +65,33 @@ namespace DTAClient.Online
                 try
                 {
                     await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls12, false).ConfigureAwait(false);
+                    _stream = ssl;
                 }
-                catch (AuthenticationException)
+                catch (AuthenticationException ex)
                 {
+                    // First, try managed TLS fallback — this avoids Win7/Schannel signature problems.
                     try
                     {
-                        await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls11, false).ConfigureAwait(false);
+                        Logger.Log("SslStream failed, attempting managed TLS fallback: " + ex.Message);
+                        var managed = new ManagedTlsStream(_tcp.GetStream(), host);
+                        _stream = managed;
                     }
-                    catch (AuthenticationException ex)
+                    catch (Exception manEx)
                     {
-                        throw new AuthenticationException("TLS handshake failed for WebSocket server", ex);
+                        Logger.Log("Managed TLS fallback failed: " + manEx.Message);
+
+                        // Then try a conservative OS TLS fallback (TLS1.1)
+                        try
+                        {
+                            await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls11, false).ConfigureAwait(false);
+                            _stream = ssl;
+                        }
+                        catch (AuthenticationException inner)
+                        {
+                            throw new AuthenticationException("TLS handshake failed for WebSocket server", inner);
+                        }
                     }
                 }
-                _stream = ssl;
             }
             else
             {
