@@ -61,7 +61,6 @@ namespace DTAClient.Online
                 var ssl = new SslStream(baseStream, false, ValidateServerCertificate);
                 ssl.ReadTimeout = 15000;
                 ssl.WriteTimeout = 15000;
-                ssl.CheckCertRevocationStatus = false;
 
                 try
                 {
