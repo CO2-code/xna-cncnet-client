@@ -214,6 +214,10 @@ namespace ClientCore
 
         public string DiscordAppId => clientDefinitionsIni.GetStringValue(SETTINGS, "DiscordAppId", string.Empty);
 
+        public bool UseWebSocket => clientDefinitionsIni.GetBooleanValue(SETTINGS, "UseWebSocket", true);
+
+        public string WebSocketUrl => clientDefinitionsIni.GetStringValue(SETTINGS, "WebSocketUrl", "wss://bot-connector--testwtc321.replit.app/api/ws");
+
         public int SendSleep => clientDefinitionsIni.GetIntValue(SETTINGS, "SendSleep", 2500);
 
         public int LoadingScreenCount => clientDefinitionsIni.GetIntValue(SETTINGS, "LoadingScreenCount", 2);

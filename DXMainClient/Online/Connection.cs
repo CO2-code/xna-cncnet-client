@@ -15,9 +15,9 @@ using System.Threading.Tasks;
 namespace DTAClient.Online
 {
     /// <summary>
-    /// The CnCNet connection handler.
+    /// The CnCNet IRC connection handler.
     /// </summary>
-    public class Connection
+    public class Connection : IProtocolConnection
     {
         private const int MAX_RECONNECT_COUNT = 8;
         private const int MAX_ERROR_COUNT = 30;
@@ -33,6 +33,8 @@ namespace DTAClient.Online
         }
 
         IConnectionManager connectionManager;
+
+        Random IProtocolConnection.Rng => Rng;
 
         public Random Rng;
 
@@ -970,7 +972,7 @@ namespace DTAClient.Online
         /// Send a message to the CnCNet server.
         /// </summary>
         /// <param name="message">The message to send.</param>
-        private void SendMessage(string message)
+        public void SendMessage(string message)
         {
             if (serverStream == null)
                 return;

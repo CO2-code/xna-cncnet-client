@@ -50,7 +50,15 @@ namespace DTAClient.Online
         {
             gameCollection = gc;
             this.cncNetUserData = cncNetUserData;
-            connection = new Connection(this, random);
+
+            if (ClientConfiguration.Instance.UseWebSocket)
+            {
+                connection = new WebSocketConnection(this, random, ClientConfiguration.Instance.WebSocketUrl);
+            }
+            else
+            {
+                connection = new Connection(this, random);
+            }
 
             this.wm = wm;
 
@@ -100,7 +108,7 @@ namespace DTAClient.Online
         /// </summary>
         public List<IRCUser> UserList = new List<IRCUser>();
 
-        private Connection connection;
+        private IProtocolConnection connection;
 
         private List<Channel> channels = new List<Channel>();
 
@@ -116,6 +124,9 @@ namespace DTAClient.Online
 
         public bool IsCnCNetInitialized()
         {
+            if (ClientConfiguration.Instance.UseWebSocket)
+                return connection.IsConnected;
+
             return Connection.IsIdSet();
         }
 
