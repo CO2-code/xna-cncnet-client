@@ -4,14 +4,18 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Text;
-using Org.BouncyCastle.Crypto.Tls;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Tls;
+using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 
 namespace DTAClient.Online
 {
-    // Minimal wrapper to provide a Stream over a BouncyCastle TLS connection.
-    // This class attempts to perform a TLS handshake using BouncyCastle's TlsClientProtocol
-    // and exposes the resulting secured stream for read/write operations.
+    /// <summary>
+    /// Minimal wrapper to provide a Stream over a BouncyCastle TLS connection.
+    /// This class attempts to perform a TLS handshake using BouncyCastle's TlsClientProtocol
+    /// and exposes the resulting secured stream for read/write operations.
+    /// Uses the new BouncyCastle.Tls API (Org.BouncyCastle.Tls) for modern TLS 1.2/1.3 support.
+    /// </summary>
     internal sealed class ManagedTlsStream : Stream
     {
         private readonly TlsClientProtocol _protocol;
@@ -19,8 +23,7 @@ namespace DTAClient.Online
 
         public ManagedTlsStream(Stream underlyingStream, string host)
         {
-            var secureRandom = new SecureRandom();
-            _protocol = new TlsClientProtocol(underlyingStream, secureRandom);
+            _protocol = new TlsClientProtocol(underlyingStream);
 
             var client = new BcTlsClient(host);
             _protocol.Connect(client);
@@ -32,32 +35,15 @@ namespace DTAClient.Online
             private readonly string _host;
 
             public BcTlsClient(string host)
+                : base(new BcTlsCrypto(new SecureRandom()))
             {
                 _host = host;
-            }
-
-            public override void NotifyAlertRaised(byte alertLevel, byte alertDescription, string message, Exception? cause)
-            {
-                // Preserve default behavior.
-                base.NotifyAlertRaised(alertLevel, alertDescription, message, cause);
             }
 
             public override TlsAuthentication GetAuthentication()
             {
                 return new NullTlsAuthentication();
             }
-
-            /// <summary>
-            /// Require at least TLS 1.2. The default is TLS 1.0, which many modern
-            /// servers (including the Replit WebSocket server) reject.
-            /// </summary>
-            public override ProtocolVersion MinimumVersion => ProtocolVersion.TLSv12;
-
-            /// <summary>
-            /// Advertise TLS 1.2 as the client version. This tells the server we
-            /// prefer TLS 1.2, which is the most widely supported modern version.
-            /// </summary>
-            public override ProtocolVersion ClientVersion => ProtocolVersion.TLSv12;
 
             public override IDictionary GetClientExtensions()
             {
@@ -83,37 +69,11 @@ namespace DTAClient.Online
 
                 return extensions;
             }
-
-            /// <summary>
-            /// Overrides the default cipher suites to offer only modern, secure ciphers
-            /// that are compatible with modern TLS servers. The default list includes
-            /// obsolete ciphers (RC4, 3DES, NULL) that can cause handshake failures.
-            /// </summary>
-            public override int[] GetCipherSuites()
-            {
-                return new int[]
-                {
-                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
-                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
-                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
-                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
-                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
-                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
-                    CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
-                    CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384,
-                };
-            }
         }
 
         private sealed class NullTlsAuthentication : TlsAuthentication
         {
-            public void NotifyServerCertificate(Certificate serverCertificate)
+            public void NotifyServerCertificate(TlsServerCertificate serverCertificate)
             {
                 // Accept any server certificate.
             }
