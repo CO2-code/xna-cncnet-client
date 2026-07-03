@@ -4,9 +4,8 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Text;
+using Org.BouncyCastle.Crypto.Tls;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Tls;
-using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 
 namespace DTAClient.Online
 {
@@ -20,7 +19,8 @@ namespace DTAClient.Online
 
         public ManagedTlsStream(Stream underlyingStream, string host)
         {
-            _protocol = new TlsClientProtocol(underlyingStream);
+            var secureRandom = new SecureRandom();
+            _protocol = new TlsClientProtocol(underlyingStream, secureRandom);
 
             var client = new BcTlsClient(host);
             _protocol.Connect(client);
@@ -32,16 +32,26 @@ namespace DTAClient.Online
             private readonly string _host;
 
             public BcTlsClient(string host)
-                : base(new BcTlsCrypto(new SecureRandom()))
             {
                 _host = host;
+            }
+
+            public override void NotifyAlertRaised(byte alertLevel, byte alertDescription, string message, Exception? cause)
+            {
+                // Preserve default behavior.
+                base.NotifyAlertRaised(alertLevel, alertDescription, message, cause);
+            }
+
+            public override TlsAuthentication GetAuthentication()
+            {
+                return new NullTlsAuthentication();
             }
 
             public override IDictionary GetClientExtensions()
             {
                 var extensions = base.GetClientExtensions() ?? new Hashtable();
 
-                // Add SNI (Server Name Indication) extension
+                // Manually build the SNI extension (server_name)
                 byte[] hostNameBytes = Encoding.UTF8.GetBytes(_host);
                 byte[] extensionData = new byte[hostNameBytes.Length + 5];
 
@@ -62,15 +72,36 @@ namespace DTAClient.Online
                 return extensions;
             }
 
-            public override TlsAuthentication GetAuthentication()
+            /// <summary>
+            /// Overrides the default cipher suites to offer only modern, secure ciphers
+            /// that are compatible with modern TLS servers. The default list includes
+            /// obsolete ciphers (RC4, 3DES, NULL) that can cause handshake failures.
+            /// </summary>
+            public override int[] GetCipherSuites()
             {
-                return new NullTlsAuthentication();
+                return new int[]
+                {
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+                    CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384,
+                };
             }
         }
 
         private sealed class NullTlsAuthentication : TlsAuthentication
         {
-            public void NotifyServerCertificate(TlsServerCertificate serverCertificate)
+            public void NotifyServerCertificate(Certificate serverCertificate)
             {
                 // Accept any server certificate.
             }
