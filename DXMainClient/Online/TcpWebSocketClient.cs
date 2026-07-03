@@ -4,13 +4,10 @@ using System;
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
-using System.Security.Authentication;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Rampastring.Tools;
 
 namespace DTAClient.Online
 {
@@ -59,40 +56,32 @@ namespace DTAClient.Online
 
             if (useTls)
             {
-                var ssl = new SslStream(baseStream, false, ValidateServerCertificate);
-                ssl.ReadTimeout = 15000;
-                ssl.WriteTimeout = 15000;
+                var ssl = new SslStream(baseStream, false);
 
+                // Explicitly request TLS 1.2. On Windows 7 / older .NET Framework,
+                // the "system default" protocol selection used by the single-argument
+                // AuthenticateAsClientAsync(host) overload falls back to SSL3/TLS1.0,
+                // which modern servers reject. Windows 7 also has TLS 1.2 disabled by
+                // default at the OS (Schannel) level — see the registry fix required
+                // alongside this change.
                 try
                 {
-                    await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls12, false).ConfigureAwait(false);
-                    _stream = ssl;
+                    await ssl.AuthenticateAsClientAsync(
+                        host,
+                        null,
+                        System.Security.Authentication.SslProtocols.Tls12,
+                        false).ConfigureAwait(false);
                 }
-                catch (AuthenticationException ex)
+                catch (System.Security.Authentication.AuthenticationException authEx)
                 {
-                    // First, try managed TLS fallback — this avoids Win7/Schannel signature problems.
-                    try
-                    {
-                        Logger.Log("SslStream failed, attempting managed TLS fallback: " + ex.Message);
-                        var managed = new ManagedTlsStream(_tcp.GetStream(), host);
-                        _stream = managed;
-                    }
-                    catch (Exception manEx)
-                    {
-                        Logger.Log("Managed TLS fallback failed: " + manEx.Message);
-
-                        // Then try a conservative OS TLS fallback (TLS1.1)
-                        try
-                        {
-                            await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls11, false).ConfigureAwait(false);
-                            _stream = ssl;
-                        }
-                        catch (AuthenticationException inner)
-                        {
-                            throw new AuthenticationException("TLS handshake failed for WebSocket server", inner);
-                        }
-                    }
+                    throw new Exception(
+                        "TLS 1.2 handshake failed. On Windows 7, TLS 1.2 must be enabled " +
+                        "at the OS level (Schannel) via registry, and .NET Framework needs " +
+                        "'SchUseStrongCrypto' enabled. See setup instructions. Details: " +
+                        authEx.Message, authEx);
                 }
+
+                _stream = ssl;
             }
             else
             {
@@ -101,18 +90,6 @@ namespace DTAClient.Online
 
             await PerformHandshakeAsync(host, port, path, ct).ConfigureAwait(false);
             _isOpen = true;
-        }
-
-        private static bool ValidateServerCertificate(
-            object sender,
-            System.Security.Cryptography.X509Certificates.X509Certificate? certificate,
-            System.Security.Cryptography.X509Certificates.X509Chain? chain,
-            SslPolicyErrors sslPolicyErrors)
-        {
-            // Some legacy Windows installations cannot validate the Replit certificate chain
-            // even though the server is reachable and the TLS session itself is healthy.
-            // Accept the certificate to keep the client usable in those environments.
-            return true;
         }
 
         private async Task PerformHandshakeAsync(string host, int port, string path, CancellationToken ct)

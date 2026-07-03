@@ -30,19 +30,11 @@ namespace DTAClient.Domain.Multiplayer
 
         /// <summary>
         /// Whether to use MaxPlayers for limiting the player count of the map or a game mode.
-        /// If false, MaxPlayers is only used for randomizing
+        /// If false (which is the default), MaxPlayers is only used for randomizing
         /// players to starting waypoints.
         /// </summary>
         [JsonInclude]
         public bool? EnforceMaxPlayers { get; private set; }
-
-        /// <summary>
-        /// Whether to enforce the minimum player count of the map or a game mode.
-        /// If false, MinPlayers is ignored and the game
-        /// can be launched with fewer players.
-        /// </summary>
-        [JsonInclude]
-        public bool? EnforceMinPlayers { get; private set; }
 
         /// <summary>
         /// The allowed starting locations for this map or game mode.
@@ -93,16 +85,16 @@ namespace DTAClient.Domain.Multiplayer
         protected void InitializeBaseSettingsFromIniSection(IniSection section, bool isCustomMap)
         {
             // MinPlayers
-            MinPlayers = section.GetIntValueOrNull("ClientMinPlayer") ?? section.GetIntValueOrNull("MinPlayers") ?? section.GetIntValueOrNull("MinPlayer");
+            MinPlayers = section.GetIntValueOrNull(isCustomMap ? "MinPlayer" : "MinPlayers");
 
             // MaxPlayers
-            MaxPlayers = section.GetIntValueOrNull("ClientMaxPlayer") ?? section.GetIntValueOrNull("MaxPlayers") ?? section.GetIntValueOrNull("MaxPlayer");
+            if (isCustomMap)
+                MaxPlayers = section.GetIntValueOrNull("ClientMaxPlayer") ?? section.GetIntValueOrNull("MaxPlayer");
+            else
+                MaxPlayers = section.GetIntValueOrNull("MaxPlayers");
 
             // EnforceMaxPlayers
             EnforceMaxPlayers = section.GetBooleanValueOrNull("EnforceMaxPlayers");
-
-            // EnforceMinPlayers
-            EnforceMinPlayers = section.GetBooleanValueOrNull("EnforceMinPlayers");
 
             // AllowedStartingLocations
             List<int>? rawAllowedStartingLocations = section.GetListValueOrNull<int>("AllowedStartingLocations", ',', int.Parse);

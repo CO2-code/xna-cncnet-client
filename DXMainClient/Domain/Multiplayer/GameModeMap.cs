@@ -59,10 +59,7 @@ namespace DTAClient.Domain.Multiplayer
             Map.CoopInfo ?? GameMode.CoopInfo ?? null;
 
         public bool EnforceMaxPlayers =>
-            Map.EnforceMaxPlayers ?? GameMode.EnforceMaxPlayers ?? IsCoop;
-
-        public bool EnforceMinPlayers =>
-            Map.EnforceMinPlayers ?? GameMode.EnforceMinPlayers ?? IsCoop;
+            Map.EnforceMaxPlayers ?? GameMode.EnforceMaxPlayers ?? false;
 
         public bool ForceNoTeams =>
             Map.ForceNoTeams ?? GameMode.ForceNoTeams ?? false;
