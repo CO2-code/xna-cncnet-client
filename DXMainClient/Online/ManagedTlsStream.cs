@@ -3,8 +3,10 @@
 using System;
 using System.Collections;
 using System.IO;
-using Org.BouncyCastle.Crypto.Tls;
+using System.Text;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Tls;
+using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 
 namespace DTAClient.Online
 {
@@ -18,8 +20,7 @@ namespace DTAClient.Online
 
         public ManagedTlsStream(Stream underlyingStream, string host)
         {
-            var secureRandom = new SecureRandom();
-            _protocol = new TlsClientProtocol(underlyingStream, secureRandom);
+            _protocol = new TlsClientProtocol(underlyingStream);
 
             var client = new BcTlsClient(host);
             _protocol.Connect(client);
@@ -31,32 +32,45 @@ namespace DTAClient.Online
             private readonly string _host;
 
             public BcTlsClient(string host)
+                : base(new BcTlsCrypto(new SecureRandom()))
             {
                 _host = host;
             }
 
-            public override void NotifyAlertRaised(byte alertLevel, byte alertDescription, string message, Exception? cause)
+            public override IDictionary GetClientExtensions()
             {
-                // Preserve default behavior.
-                base.NotifyAlertRaised(alertLevel, alertDescription, message, cause);
+                var extensions = base.GetClientExtensions() ?? new Hashtable();
+
+                // Add SNI (Server Name Indication) extension
+                byte[] hostNameBytes = Encoding.UTF8.GetBytes(_host);
+                byte[] extensionData = new byte[hostNameBytes.Length + 5];
+
+                // Server name list length (2 bytes)
+                extensionData[0] = (byte)((hostNameBytes.Length + 3) >> 8);
+                extensionData[1] = (byte)(hostNameBytes.Length + 3);
+                // Name type (1 byte) - 0 = host_name
+                extensionData[2] = 0;
+                // Name length (2 bytes)
+                extensionData[3] = (byte)(hostNameBytes.Length >> 8);
+                extensionData[4] = (byte)hostNameBytes.Length;
+                // Name data
+                Array.Copy(hostNameBytes, 0, extensionData, 5, hostNameBytes.Length);
+
+                // Extension type 0 = server_name
+                extensions[0] = extensionData;
+
+                return extensions;
             }
 
             public override TlsAuthentication GetAuthentication()
             {
                 return new NullTlsAuthentication();
             }
-
-            public override IDictionary GetClientExtensions()
-            {
-                var extensions = base.GetClientExtensions() ?? new Hashtable();
-                TlsUtilities.AddSniExtension(extensions, new ServerName(NameType.host_name, _host));
-                return extensions;
-            }
         }
 
         private sealed class NullTlsAuthentication : TlsAuthentication
         {
-            public void NotifyServerCertificate(Certificate serverCertificate)
+            public void NotifyServerCertificate(TlsServerCertificate serverCertificate)
             {
                 // Accept any server certificate.
             }
