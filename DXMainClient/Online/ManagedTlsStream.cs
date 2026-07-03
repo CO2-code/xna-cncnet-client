@@ -47,6 +47,18 @@ namespace DTAClient.Online
                 return new NullTlsAuthentication();
             }
 
+            /// <summary>
+            /// Require at least TLS 1.2. The default is TLS 1.0, which many modern
+            /// servers (including the Replit WebSocket server) reject.
+            /// </summary>
+            public override ProtocolVersion MinimumVersion => ProtocolVersion.TLSv12;
+
+            /// <summary>
+            /// Advertise TLS 1.2 as the client version. This tells the server we
+            /// prefer TLS 1.2, which is the most widely supported modern version.
+            /// </summary>
+            public override ProtocolVersion ClientVersion => ProtocolVersion.TLSv12;
+
             public override IDictionary GetClientExtensions()
             {
                 var extensions = base.GetClientExtensions() ?? new Hashtable();
