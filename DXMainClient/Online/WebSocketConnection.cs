@@ -9,7 +9,6 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Net.WebSockets;
 
 namespace DTAClient.Online
 {

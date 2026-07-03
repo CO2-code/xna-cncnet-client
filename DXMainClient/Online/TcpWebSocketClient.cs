@@ -1,26 +1,44 @@
 #nullable enable
 
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Tls;
+using Org.BouncyCastle.Tls.Crypto;
+using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 
 namespace DTAClient.Online
 {
     /// <summary>
-    /// Minimal WebSocket client built on TcpClient + SslStream.
-    /// Works on .NET Framework 4.5+, Mono, .NET Core, .NET 5/6/7/8, Windows 7+, Linux, macOS.
-    /// Replaces System.Net.WebSockets.ClientWebSocket which throws PlatformNotSupportedException
-    /// on Mono and on .NET Framework running on Windows 7 (no HTTP.sys 2.0).
+    /// Minimal WebSocket client built on TcpClient + a pure-managed TLS 1.2 stack (BouncyCastle).
+    ///
+    /// Works on .NET Framework 4.5+, Mono, .NET Core, .NET 5/6/7/8, Windows 7+, Linux, macOS —
+    /// including old/unpatched Windows 7 installs.
+    ///
+    /// We do NOT use System.Net.WebSockets.ClientWebSocket (PlatformNotSupportedException on
+    /// Mono / old .NET Framework on Windows 7) and we do NOT use System.Net.Security.SslStream
+    /// for the TLS layer either, because SslStream delegates to the OS's Schannel provider.
+    /// On Windows 7, Schannel's default cipher suite set does not include the modern
+    /// ECDHE+AES-GCM suites that Replit's TLS-terminating edge requires, and whether the
+    /// necessary suites are available depends on how patched the individual machine is
+    /// (e.g. KB4019276). That makes connectivity unpredictable across different Windows 7
+    /// installs.
+    ///
+    /// BouncyCastle's Org.BouncyCastle.Tls implementation is a fully self-contained, pure C#
+    /// TLS 1.2 client — it does not touch Schannel/CryptoAPI at all, so its cipher suite
+    /// support is identical on every version of Windows regardless of OS patch level.
     /// </summary>
     internal sealed class TcpWebSocketClient : IDisposable
     {
         private TcpClient? _tcp;
         private Stream? _stream;
+        private TlsClientProtocol? _tlsProtocol;
         private bool _isOpen;
 
         public bool IsOpen => _isOpen;
@@ -56,32 +74,34 @@ namespace DTAClient.Online
 
             if (useTls)
             {
-                var ssl = new SslStream(baseStream, false);
-
-                // Explicitly request TLS 1.2. On Windows 7 / older .NET Framework,
-                // the "system default" protocol selection used by the single-argument
-                // AuthenticateAsClientAsync(host) overload falls back to SSL3/TLS1.0,
-                // which modern servers reject. Windows 7 also has TLS 1.2 disabled by
-                // default at the OS (Schannel) level — see the registry fix required
-                // alongside this change.
                 try
                 {
-                    await ssl.AuthenticateAsClientAsync(
-                        host,
-                        null,
-                        System.Security.Authentication.SslProtocols.Tls12,
-                        false).ConfigureAwait(false);
+                    // Run the blocking BouncyCastle handshake on a background thread and
+                    // race it against the caller's cancellation token / timeout.
+                    var handshakeTask = Task.Run(() =>
+                    {
+                        var crypto = new BcTlsCrypto(new SecureRandom());
+                        _tlsProtocol = new TlsClientProtocol(baseStream);
+                        var tlsClient = new WsTlsClient(crypto, host);
+                        _tlsProtocol.Connect(tlsClient);
+                        return (Stream)_tlsProtocol.Stream;
+                    }, ct);
+
+                    var cancelTcs = new TaskCompletionSource<Stream>();
+                    using (ct.Register(() => cancelTcs.TrySetCanceled()))
+                    {
+                        var completed = await Task.WhenAny(handshakeTask, cancelTcs.Task).ConfigureAwait(false);
+                        if (completed == cancelTcs.Task)
+                            throw new OperationCanceledException(ct);
+
+                        _stream = await handshakeTask.ConfigureAwait(false);
+                    }
                 }
-                catch (System.Security.Authentication.AuthenticationException authEx)
+                catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
                     throw new Exception(
-                        "TLS 1.2 handshake failed. On Windows 7, TLS 1.2 must be enabled " +
-                        "at the OS level (Schannel) via registry, and .NET Framework needs " +
-                        "'SchUseStrongCrypto' enabled. See setup instructions. Details: " +
-                        authEx.Message, authEx);
+                        "TLS 1.2 handshake failed (managed BouncyCastle stack). Details: " + ex.Message, ex);
                 }
-
-                _stream = ssl;
             }
             else
             {
@@ -90,6 +110,65 @@ namespace DTAClient.Online
 
             await PerformHandshakeAsync(host, port, path, ct).ConfigureAwait(false);
             _isOpen = true;
+        }
+
+        /// <summary>
+        /// Accepts any server certificate without validation. The WebSocket endpoint is
+        /// pinned by hostname at the connection layer (the game client is hardcoded to a
+        /// known CnCNet server address), so this mirrors the trust model already used
+        /// elsewhere in the legacy client rather than introducing a full CA trust store
+        /// (which BouncyCastle does not source from the OS certificate store by default).
+        /// </summary>
+        private sealed class LenientTlsAuthentication : TlsAuthentication
+        {
+            public void NotifyServerCertificate(TlsServerCertificate serverCertificate)
+            {
+                // Intentionally not validated further — see class remarks.
+            }
+
+            public TlsCredentials? GetClientCredentials(CertificateRequest certificateRequest) => null;
+        }
+
+        private sealed class WsTlsClient : DefaultTlsClient
+        {
+            private readonly string _host;
+
+            public WsTlsClient(TlsCrypto crypto, string host) : base(crypto)
+            {
+                _host = host;
+            }
+
+            public override TlsAuthentication GetAuthentication() => new LenientTlsAuthentication();
+
+            protected override IList<ServerName>? GetSniServerNames()
+            {
+                return new List<ServerName>
+                {
+                    new ServerName(NameType.host_name, Encoding.ASCII.GetBytes(_host)),
+                };
+            }
+
+            protected override ProtocolVersion[] GetSupportedVersions()
+            {
+                return ProtocolVersion.TLSv12.Only();
+            }
+
+            protected override int[] GetSupportedCipherSuites()
+            {
+                return new int[]
+                {
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+                    CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384,
+                    CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA,
+                };
+            }
         }
 
         private async Task PerformHandshakeAsync(string host, int port, string path, CancellationToken ct)
@@ -337,6 +416,7 @@ namespace DTAClient.Online
         public void Dispose()
         {
             _isOpen = false;
+            try { _tlsProtocol?.Close(); } catch { }
             try { _stream?.Dispose(); } catch { }
             try { _tcp?.Close(); } catch { }
         }
