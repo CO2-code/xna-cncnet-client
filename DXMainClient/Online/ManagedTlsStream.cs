@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Org.BouncyCastle.Security;
@@ -45,29 +46,27 @@ namespace DTAClient.Online
                 return new NullTlsAuthentication();
             }
 
-            public override IDictionary GetClientExtensions()
+            /// <summary>
+            /// Provides the SNI (Server Name Indication) hostname so the server
+            /// knows which certificate to present. The base GetClientExtensions()
+            /// will automatically encode this into the ClientHello.
+            /// </summary>
+            protected override IList GetSniServerNames()
             {
-                var extensions = base.GetClientExtensions() ?? new Hashtable();
-
-                // Manually build the SNI extension (server_name)
                 byte[] hostNameBytes = Encoding.UTF8.GetBytes(_host);
-                byte[] extensionData = new byte[hostNameBytes.Length + 5];
+                return new[] { new ServerName(NameType.host_name, hostNameBytes) };
+            }
 
-                // Server name list length (2 bytes)
-                extensionData[0] = (byte)((hostNameBytes.Length + 3) >> 8);
-                extensionData[1] = (byte)(hostNameBytes.Length + 3);
-                // Name type (1 byte) - 0 = host_name
-                extensionData[2] = 0;
-                // Name length (2 bytes)
-                extensionData[3] = (byte)(hostNameBytes.Length >> 8);
-                extensionData[4] = (byte)hostNameBytes.Length;
-                // Name data
-                Array.Copy(hostNameBytes, 0, extensionData, 5, hostNameBytes.Length);
+            public override void NotifyAlertRaised(short alertLevel, short alertDescription, string message, Exception cause)
+            {
+                Debug.WriteLine($"TLS alert raised: level={alertLevel} desc={alertDescription} msg={message}");
+                base.NotifyAlertRaised(alertLevel, alertDescription, message, cause);
+            }
 
-                // Extension type 0 = server_name
-                extensions[0] = extensionData;
-
-                return extensions;
+            public override void NotifyAlertReceived(short alertLevel, short alertDescription)
+            {
+                Debug.WriteLine($"TLS alert received: level={alertLevel} desc={alertDescription}");
+                base.NotifyAlertReceived(alertLevel, alertDescription);
             }
         }
 
