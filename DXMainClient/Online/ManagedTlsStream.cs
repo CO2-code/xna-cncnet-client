@@ -15,7 +15,7 @@ namespace DTAClient.Online
     /// Minimal wrapper to provide a Stream over a BouncyCastle TLS connection.
     /// This class attempts to perform a TLS handshake using BouncyCastle's TlsClientProtocol
     /// and exposes the resulting secured stream for read/write operations.
-    /// Uses the new BouncyCastle.Tls API (Org.BouncyCastle.Tls) for modern TLS 1.2/1.3 support.
+    /// Uses the new BouncyCastle.Tls API (Org.BouncyCastle.Tls) for modern TLS 1.2 support.
     /// </summary>
     internal sealed class ManagedTlsStream : Stream
     {
@@ -34,11 +34,46 @@ namespace DTAClient.Online
         private sealed class BcTlsClient : DefaultTlsClient
         {
             private readonly string _host;
+            private static readonly ProtocolVersion[] ProtocolVersions = { ProtocolVersion.TLSv12 };
 
             public BcTlsClient(string host)
                 : base(new BcTlsCrypto(new SecureRandom()))
             {
                 _host = host;
+            }
+
+            /// <summary>
+            /// Offer only TLS 1.2. Some servers (especially Cloudflare/Replit) may
+            /// have issues with BouncyCastle's TLS 1.3 implementation.
+            /// </summary>
+            public override ProtocolVersion[] GetProtocolVersions()
+            {
+                return ProtocolVersions;
+            }
+
+            /// <summary>
+            /// Offer only modern AEAD cipher suites that are compatible with
+            /// Cloudflare and Replit edge servers.
+            /// </summary>
+            public override int[] GetCipherSuites()
+            {
+                return new int[]
+                {
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+                    CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384,
+                };
             }
 
             public override TlsAuthentication GetAuthentication()
@@ -67,6 +102,19 @@ namespace DTAClient.Online
             {
                 Debug.WriteLine($"TLS alert received: level={alertLevel} desc={alertDescription}");
                 base.NotifyAlertReceived(alertLevel, alertDescription);
+            }
+
+            public override void NotifyHandshakeComplete()
+            {
+                Debug.WriteLine("TLS handshake complete");
+                base.NotifyHandshakeComplete();
+            }
+
+            protected override bool AllowUnexpectedServerExtension(int extensionType, byte[] extensionData)
+            {
+                // Allow unexpected extensions - some servers (Cloudflare) send extensions
+                // that BouncyCastle doesn't expect during handshake
+                return true;
             }
         }
 
