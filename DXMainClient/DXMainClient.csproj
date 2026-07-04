@@ -51,7 +51,7 @@
     <PackageReference Include="System.DirectoryServices" />
     <PackageReference Include="System.Private.Uri" />
     <PackageReference Include="System.Text.Json" />
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
+    <PackageReference Include="BouncyCastle.Cryptography" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ClientGUI\ClientGUI.csproj" />
