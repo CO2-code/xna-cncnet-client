@@ -651,20 +651,20 @@ namespace DTAClient.Online
                         {
                             // If not yet identified with the server, queue the message
                             // with highest priority so it's sent as soon as possible
-                            int placeInQueue = messageQueue.FindIndex(m => m.Priority < qm.Priority);
-                            if (placeInQueue == -1)
+                            int p = messageQueue.FindIndex(m => m.Priority < qm.Priority);
+                            if (p == -1)
                                 messageQueue.Add(qm);
                             else
-                                messageQueue.Insert(placeInQueue, qm);
+                                messageQueue.Insert(p, qm);
                         }
                         break;
 
                     default:
-                        int placeInQueue = messageQueue.FindIndex(m => m.Priority < qm.Priority);
-                        if (placeInQueue == -1)
+                        int pos = messageQueue.FindIndex(m => m.Priority < qm.Priority);
+                        if (pos == -1)
                             messageQueue.Add(qm);
                         else
-                            messageQueue.Insert(placeInQueue, qm);
+                            messageQueue.Insert(pos, qm);
                         break;
                 }
             }
