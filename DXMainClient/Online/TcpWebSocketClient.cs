@@ -85,15 +85,24 @@ namespace DTAClient.Online
                         var tlsClient = new WsTlsClient(crypto, host);
                         _tlsProtocol.Connect(tlsClient);
 
-                        // BouncyCastle's TLS stream only implements synchronous Read/Write.
-                        // The default Stream.ReadAsync/WriteAsync fall back to Task.Run-wrapped
-                        // blocking calls, and our WS frame parser issues several small reads per
-                        // frame (2, 4, 8 bytes). Without buffering, each of those becomes its own
-                        // thread-pool-blocking dispatch, which starves the pool under sustained
-                        // traffic and causes app-wide lag plus missed PING/PONG deadlines (which
-                        // in turn causes reconnect flapping). Wrapping in a BufferedStream collapses
-                        // many small reads into large infrequent underlying reads.
-                        return (Stream)new BufferedStream(_tlsProtocol.Stream, 16384);
+                    // BouncyCastle's TLS stream only implements synchronous Read/Write.
+                    // The default Stream.ReadAsync/WriteAsync fall back to Task.Run-wrapped
+                    // blocking calls, and our WS frame parser issues several small reads per
+                    // frame (2, 4, 8 bytes). Without buffering, each of those becomes its own
+                    // thread-pool-blocking dispatch, which starves the pool under sustained
+                    // traffic and causes app-wide lag plus missed PING/PONG deadlines (which
+                    // in turn causes reconnect flapping).
+                    //
+                    // We use a ThreadSafeBufferedStream instead of BufferedStream because
+                    // BufferedStream is NOT safe for concurrent read+write operations.
+                    // When a write is attempted while the read buffer has unread data,
+                    // BufferedStream tries to flush the read buffer to the underlying stream
+                    // (ClearReadBufferBeforeWrite), which throws NotSupportedException when
+                    // the underlying stream is not seekable (as is the case with BouncyCastle's
+                    // TLS stream). Our architecture has a dedicated receive loop reading from
+                    // the stream while the send queue loop writes to it, so we need a buffer
+                    // that handles this correctly.
+                    return (Stream)new ThreadSafeBufferedStream(_tlsProtocol.Stream, 16384);
                     }, ct);
 
                     var cancelTcs = new TaskCompletionSource<Stream>();

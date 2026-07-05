@@ -225,17 +225,19 @@ namespace DTAClient.Online
                         .ToArray();
                     connectionManager.OnUserListReceived(joined.Lobby, joinedUsers);
 
-                    // Notify the connection manager that each user joined the channel.
-                    // This is critical for the local player's game lobby to activate,
-                    // because GameChannel_UserAdded in CnCNetLobby waits for the
-                    // UserAdded event with ProgramConstants.PLAYERNAME to call
-                    // gameLobby.OnJoined(). Without these calls, game creation hangs
-                    // at "Creating game..." forever.
-                    foreach (var userInfo in joined.Users)
+                    // Only notify for the local player's join, not all users.
+                    // OnUserListReceived already added all users to the channel.
+                    // Calling OnUserJoinedChannel for every user would cause a
+                    // duplicate-key crash in UnsortedUserCollection.Add().
+                    // We only need the local player's join event to trigger
+                    // GameChannel_UserAdded in CnCNetLobby, which calls
+                    // gameLobby.OnJoined() to activate the lobby UI.
+                    // Without this, game creation hangs at "Creating game..." forever.
+                    if (joined.Users.Exists(u => u.Username == ProgramConstants.PLAYERNAME))
                     {
                         connectionManager.OnUserJoinedChannel(
                             joined.Lobby, string.Empty,
-                            userInfo.Username, string.Empty);
+                            ProgramConstants.PLAYERNAME, string.Empty);
                     }
 
                     // Re-broadcast game list in legacy CTCP formats
