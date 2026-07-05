@@ -94,6 +94,7 @@ namespace DTAClient.Online
                 isConnected = true;
                 attemptingConnection = false;
                 reconnectCount = 0;
+                errorCount = 0;
 
                 connectionManager.OnConnected();
 
@@ -223,6 +224,19 @@ namespace DTAClient.Online
                         .ConvertAll(u => u.Username)
                         .ToArray();
                     connectionManager.OnUserListReceived(joined.Lobby, joinedUsers);
+
+                    // Notify the connection manager that each user joined the channel.
+                    // This is critical for the local player's game lobby to activate,
+                    // because GameChannel_UserAdded in CnCNetLobby waits for the
+                    // UserAdded event with ProgramConstants.PLAYERNAME to call
+                    // gameLobby.OnJoined(). Without these calls, game creation hangs
+                    // at "Creating game..." forever.
+                    foreach (var userInfo in joined.Users)
+                    {
+                        connectionManager.OnUserJoinedChannel(
+                            joined.Lobby, string.Empty,
+                            userInfo.Username, string.Empty);
+                    }
 
                     // Re-broadcast game list in legacy CTCP formats
                     foreach (var game in joined.Games)
@@ -629,7 +643,20 @@ namespace DTAClient.Online
                 switch (qm.MessageType)
                 {
                     case QueuedMessageType.INSTANT_MESSAGE:
-                        _ = SendIrcCommandAsync(qm.Command);
+                        if (identified)
+                        {
+                            _ = SendIrcCommandAsync(qm.Command);
+                        }
+                        else
+                        {
+                            // If not yet identified with the server, queue the message
+                            // with highest priority so it's sent as soon as possible
+                            int placeInQueue = messageQueue.FindIndex(m => m.Priority < qm.Priority);
+                            if (placeInQueue == -1)
+                                messageQueue.Add(qm);
+                            else
+                                messageQueue.Insert(placeInQueue, qm);
+                        }
                         break;
 
                     default:
