@@ -220,25 +220,26 @@ namespace DTAClient.Online
 
                 case WebSocketProtocol.JOINED:
                     var joined = (WebSocketProtocol.JoinedMessage)msg;
+
+                    // Fire OnUserJoinedChannel for each user BEFORE OnUserListReceived.
+                    // This mirrors the TCP IRC protocol flow where JOIN messages arrive
+                    // before NAMES/353 replies:
+                    //   1) JOIN adds each user and fires UserAdded event
+                    //   2) UserListReceived sorts/updates existing users (skips duplicates)
+                    // Without step 1, GameChannel_UserAdded in CnCNetLobby never fires,
+                    // and gameLobby.OnJoined() is never called - causing "Creating game..."
+                    // to hang forever.
+                    foreach (var userInfo in joined.Users)
+                    {
+                        connectionManager.OnUserJoinedChannel(
+                            joined.Lobby, string.Empty,
+                            userInfo.Username, string.Empty);
+                    }
+
                     string[] joinedUsers = joined.Users
                         .ConvertAll(u => u.Username)
                         .ToArray();
                     connectionManager.OnUserListReceived(joined.Lobby, joinedUsers);
-
-                    // Only notify for the local player's join, not all users.
-                    // OnUserListReceived already added all users to the channel.
-                    // Calling OnUserJoinedChannel for every user would cause a
-                    // duplicate-key crash in UnsortedUserCollection.Add().
-                    // We only need the local player's join event to trigger
-                    // GameChannel_UserAdded in CnCNetLobby, which calls
-                    // gameLobby.OnJoined() to activate the lobby UI.
-                    // Without this, game creation hangs at "Creating game..." forever.
-                    if (joined.Users.Exists(u => u.Username == ProgramConstants.PLAYERNAME))
-                    {
-                        connectionManager.OnUserJoinedChannel(
-                            joined.Lobby, string.Empty,
-                            ProgramConstants.PLAYERNAME, string.Empty);
-                    }
 
                     // Re-broadcast game list in legacy CTCP formats
                     foreach (var game in joined.Games)
