@@ -268,6 +268,11 @@ namespace DTAClient.Online
 
                 case WebSocketProtocol.CHAT_RECEIVED:
                     var chat = (WebSocketProtocol.ChatReceivedMessage)msg;
+                    // The server echoes our own chat messages back to us.
+                    // Channel.SendChatMessage() already added the message locally,
+                    // so skip the echo to prevent duplicate messages.
+                    if (chat.From == ProgramConstants.PLAYERNAME)
+                        break;
                     connectionManager.OnChatMessageReceived(
                         chat.Lobby, chat.From, string.Empty, chat.Text);
                     break;

@@ -109,6 +109,13 @@ namespace DTAClient.Online
 
         public void AddUser(ChannelUser user)
         {
+            // Check if the user already exists to avoid duplicate-key crashes.
+            // This can happen during reconnect races: the new connection's
+            // JOINED/USER_JOINED events are processed before the old
+            // disconnect's user cleanup has run on the UI thread.
+            if (users.Find(user.IRCUser.Name) != null)
+                return;
+
             users.Add(user.IRCUser.Name, user);
             UserAdded?.Invoke(this, new ChannelUserEventArgs(user));
         }
