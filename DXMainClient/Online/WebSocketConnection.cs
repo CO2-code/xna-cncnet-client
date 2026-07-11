@@ -273,6 +273,22 @@ namespace DTAClient.Online
                     // so skip the echo to prevent duplicate messages.
                     if (chat.From == ProgramConstants.PLAYERNAME)
                         break;
+
+                    // Detect CTCP messages relayed as CHAT (e.g. \u0001LCKGME\u0001,
+                    // \u0001R\u0001, \u0001PO...\u0001, \u0001GO...\u0001, etc.)
+                    // These are game lobby state synchronization messages that
+                    // need to be routed to OnCTCPParsed instead of being displayed
+                    // as chat text.
+                    if (chat.Text.StartsWith("\u0001") && chat.Text.EndsWith("\u0001"))
+                    {
+                        string ctcpString = chat.Text.Trim('\u0001');
+                        if (!string.IsNullOrEmpty(ctcpString))
+                        {
+                            connectionManager.OnCTCPParsed(chat.Lobby, chat.From, ctcpString);
+                        }
+                        break;
+                    }
+
                     connectionManager.OnChatMessageReceived(
                         chat.Lobby, chat.From, string.Empty, chat.Text);
                     break;
@@ -559,6 +575,20 @@ namespace DTAClient.Online
                                 await SendRawMessageAsync(WebSocketProtocol.Serialize(new
                                 {
                                     type = WebSocketProtocol.CLOSE_GAME
+                                }));
+                            }
+                            else
+                            {
+                                // All other CTCP commands (R, PO, GO, READINESS,
+                                // LCKGME, SLOC, CLRS, AISPECS, START, etc.)
+                                // are game lobby state synchronization messages.
+                                // Send them as CHAT so the server relays them to
+                                // all users in the channel.
+                                await SendRawMessageAsync(WebSocketProtocol.Serialize(new
+                                {
+                                    type = WebSocketProtocol.CHAT,
+                                    lobby = target,
+                                    text = "\u0001" + ctcpString + "\u0001"
                                 }));
                             }
                         }
