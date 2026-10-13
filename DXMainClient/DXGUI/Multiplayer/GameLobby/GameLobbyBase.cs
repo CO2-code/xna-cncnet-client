@@ -13,16 +13,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Buffers.Binary;
 using System.Linq;
-using ClientCore.Enums;
+using ClientCore.Sorting;
 using DTAClient.DXGUI.Multiplayer.CnCNet;
 using DTAClient.Online.EventArguments;
 using ClientCore.Extensions;
-
-using DTAClient.DXGUI.Generic;
-
 using TextCopy;
 using System.Diagnostics;
-
 
 namespace DTAClient.DXGUI.Multiplayer.GameLobby
 {
@@ -243,6 +239,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private LoadOrSaveGameOptionPresetWindow loadOrSaveGameOptionPresetWindow;
 
+        /// <summary>Whether the game option preset window is open over the lobby.</summary>
+        public bool HasDialogOpen => loadOrSaveGameOptionPresetWindow?.Enabled == true;
+
         public override void Initialize()
         {
             Name = _iniSectionName;
@@ -315,14 +314,14 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             toggleFavoriteItem = mapContextMenu.Items.First();
 
             mapContextMenu.AddItem("Copy Map Name".L10N("Client:Main:CopyMapName"),
-                selectAction: () => ClipboardService.SetText(Map?.Name));
+                selectAction: CopyMapNameToClipboard);
             mapContextMenu.AddItem("Copy Original Name".L10N("Client:Main:CopyOriginalMapName"),
-                selectAction: () => ClipboardService.SetText(Map?.UntranslatedName),
+                selectAction: CopyOriginalMapNameToClipboard,
                 visibilityChecker: () => Map?.UntranslatedName != Map?.Name);
             mapContextMenu.AddItem("Delete Map".L10N("Client:Main:DeleteMap"),
                 selectAction: DeleteMapConfirmation,
                 visibilityChecker: CanDeleteMap);
-            mapContextMenu.AddItem("Show in folder".L10N("Client:Main:ShowInFolder"),
+            mapContextMenu.AddItem("Show in Folder".L10N("Client:Main:ShowInFolder"),
                 selectAction: ShowInFolder);
 
             AddChild(mapContextMenu);
@@ -415,7 +414,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private void InitializeGameOptionPresetUI()
         {
-            btnSaveLoadGameOptions = FindChild<XNAClientButton>(nameof(btnSaveLoadGameOptions), true);
+            btnSaveLoadGameOptions = FindChild<XNAClientButton>(nameof(btnSaveLoadGameOptions), optional: true);
 
             if (btnSaveLoadGameOptions != null)
             {
@@ -868,6 +867,30 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private void ShowInFolder() => Map?.OpenContainingFolder();
 
+        private void CopyMapNameToClipboard()
+        {
+            try
+            {
+                ClipboardService.SetText(Map?.Name);
+            }
+            catch (Exception)
+            {
+                XNAMessageBox.Show(WindowManager, "Error".L10N("Client:Main:Error"), "Unable to copy map name to clipboard.".L10N("Client:Main:ClipboardCopyMapNameFailed"));
+            }
+        }
+
+        private void CopyOriginalMapNameToClipboard()
+        {
+            try
+            {
+                ClipboardService.SetText(Map?.UntranslatedName);
+            }
+            catch (Exception)
+            {
+                XNAMessageBox.Show(WindowManager, "Error".L10N("Client:Main:Error"), "Unable to copy map name to clipboard.".L10N("Client:Main:ClipboardCopyMapNameFailed"));
+            }
+        }
+
         private void MapPreviewBox_ToggleFavorite(object sender, EventArgs e) =>
             ToggleFavoriteMap();
 
@@ -1183,7 +1206,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             ReadINIForControl(lblStart);
             ReadINIForControl(lblTeam);
 
-            btnPlayerExtraOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerExtraOptionsOpen), true);
+            btnPlayerExtraOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerExtraOptionsOpen), optional: true);
 
             if (btnPlayerExtraOptionsOpen != null)
             {
@@ -1808,6 +1831,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             string packedGameOptionValues = GetPackedGameOptionValuesString();
             spawnIni.SetStringValue("Settings", "BroadcastedGameOptionValues", packedGameOptionValues);
 
+            ReplayManager.PrepareRecording(spawnIni, Map.UntranslatedName);
+
             spawnIni.WriteIniFile();
 
             return houseInfos;
@@ -1944,7 +1969,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 // Theoretically it can be useful for some singleplayer campaign tracking
                 // But it isn't currently used by any CnCNet game or mod
                 // The code below only applies to the single player case
-                string mapIniFileName = Path.GetFileName(mapIni.FileName);
+                string mapIniFileName = Path.GetFileName(mapIni.FilePath);
                 mapIni.SetStringValue("Basic", "OriginalFilename", mapIniFileName);
             }
 
@@ -1973,7 +1998,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         /// <param name="mapIni"></param>
         private void CopySupplementalMapFiles(IniFile mapIni)
         {
-            var mapFileInfo = new FileInfo(mapIni.FileName);
+            var mapFileInfo = new FileInfo(mapIni.FilePath);
             string mapFileBaseName = Path.GetFileNameWithoutExtension(mapFileInfo.Name);
 
             IEnumerable<string> supplementalMapFiles = GetSupplementalMapFiles(mapFileInfo.DirectoryName, mapFileBaseName).ToList();
@@ -2185,6 +2210,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             CopyPlayerDataToUI();
 
             UpdateDiscordPresence(true);
+
+            ReplayManager.Prune();
         }
 
         /// <summary>
@@ -2679,13 +2706,13 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             foreach (GameLobbyCheckBox checkBox in CheckBoxes)
             {
-                if (checkBox.AllowScoring)
+                if (!checkBox.AllowScoring)
                     return Rank.None;
             }
-            
+
             foreach (GameLobbyDropDown dropDown in DropDowns)
             {
-                if (dropDown.AllowScoring)
+                if (!dropDown.AllowScoring)
                     return Rank.None;
             }
 
