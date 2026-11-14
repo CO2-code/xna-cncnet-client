@@ -1479,6 +1479,17 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         /// </summary>
         protected override void BroadcastPlayerOptions()
         {
+            if (IsHost && Locked)
+            {
+                foreach (PlayerInfo pInfo in Players)
+                {
+                    if (IsPlayerSpectator(pInfo))
+                        pInfo.Ready = true;
+                }
+
+                CopyPlayerDataToUI();
+            }
+
             // Broadcast player options
             StringBuilder sb = new StringBuilder("PO ");
             foreach (PlayerInfo pInfo in Players.Concat(AIPlayers))
@@ -2627,6 +2638,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 string.Format("MODE {0} +i", channel.ChannelName), QueuedMessageType.INSTANT_MESSAGE, -1));
 
             Locked = true;
+            BroadcastPlayerOptions();
             btnLockGame.Text = "Unlock Game".L10N("Client:Main:UnlockGame");
             AccelerateGameBroadcasting();
         }
